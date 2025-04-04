@@ -13,6 +13,17 @@ export interface AuthUser {
   id: string;
   username: string;
   email: string;
+  createdAt?: string;
+  updatedAt?: string;
+  lastLogin?: string;
+  preferences?: {
+    theme: 'light' | 'dark' | 'system';
+    furiganaPosition: 'above' | 'inline';
+    fontSize: string;
+    studyGoalDaily: number;
+  };
+  streak?: number;
+  lastStudyDate?: string;
 }
 
 /**
@@ -37,13 +48,24 @@ export async function registerUser(username: string, email: string, password: st
   const now = new Date().toISOString();
   const userId = createId();
   
+  // Default user preferences
+  const defaultPreferences = {
+    theme: 'system' as 'light' | 'dark' | 'system',
+    furiganaPosition: 'above' as 'above' | 'inline',
+    fontSize: 'medium',
+    studyGoalDaily: 20
+  };
+  
   await db.insert(users).values({
     id: userId,
     username,
     email,
     passwordHash,
     createdAt: now,
-    updatedAt: now
+    updatedAt: now,
+    lastLogin: now,
+    preferences: defaultPreferences,
+    streak: 0
   });
   
   return { id: userId, username, email };
@@ -93,7 +115,7 @@ export async function loginUser(email: string, password: string): Promise<{ user
 /**
  * Create a JWT token for a user
  */
-export function createToken(user: { id: string; username: string; email: string }): string {
+export function createToken(user: any): string {
   const payload = {
     id: user.id,
     username: user.username,
@@ -127,13 +149,19 @@ export function verifyToken(token: string): AuthUser | null {
 }
 
 /**
- * Get user by ID
+ * Get user by ID with complete profile
  */
 export async function getUserById(id: string): Promise<AuthUser | null> {
   const userResults = await db.select({
     id: users.id,
     username: users.username,
-    email: users.email
+    email: users.email,
+    createdAt: users.createdAt,
+    updatedAt: users.updatedAt,
+    lastLogin: users.lastLogin,
+    preferences: users.preferences,
+    streak: users.streak,
+    lastStudyDate: users.lastStudyDate
   })
     .from(users)
     .where(eq(users.id, id))
@@ -143,7 +171,7 @@ export async function getUserById(id: string): Promise<AuthUser | null> {
     return null;
   }
   
-  return userResults[0];
+  return userResults[0] as AuthUser;
 }
 
 /**

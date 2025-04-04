@@ -3,7 +3,7 @@
   import { authStore, isAuthenticated, isLoading } from '$lib/stores/auth';
   import { goto } from '$app/navigation';
   
-  // User stats (in a real app, these would be fetched from an API)
+  // User stats (to be loaded from API)
   let stats = {
     totalKanjiStudied: 0,
     totalSessions: 0,
@@ -15,6 +15,19 @@
   // Loading state for stats
   let loadingStats = true;
   
+  // Date formatter
+  const dateFormatter = new Intl.DateTimeFormat('en-US', { 
+    year: 'numeric', 
+    month: 'short', 
+    day: 'numeric' 
+  });
+  
+  // Format date for display
+  function formatDate(dateStr: string | null | undefined) {
+    if (!dateStr) return 'Never';
+    return dateFormatter.format(new Date(dateStr));
+  }
+  
   // Check if user is authenticated and redirect if not
   onMount(async () => {
     await authStore.checkAuth();
@@ -24,7 +37,7 @@
       return;
     }
     
-    // In a real app, fetch user stats here
+    // Load user stats
     await fetchUserStats();
   });
   
@@ -33,32 +46,23 @@
     loadingStats = true;
     
     try {
-      // In a real app, this would be an API call
-      // For now, use dummy data
-      await new Promise(resolve => setTimeout(resolve, 500)); // Simulate API delay
+      // Real API call to get user stats
+      const response = await fetch('/api/user/stats');
       
-      stats = {
-        totalKanjiStudied: 145,
-        totalSessions: 24,
-        currentStreak: 3,
-        averageAccuracy: 87,
-        lastStudyDate: new Date(Date.now() - 86400000) // Yesterday
-      };
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          stats = data.stats;
+        }
+      } else {
+        // If the stats API is not implemented yet, we'll just show zeros
+        console.log('Stats API not available, showing default values');
+      }
     } catch (error) {
       console.error('Error fetching user stats:', error);
     } finally {
       loadingStats = false;
     }
-  }
-  
-  // Format date for display
-  function formatDate(date: Date | null) {
-    if (!date) return 'Never';
-    return new Intl.DateTimeFormat('en-US', { 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric' 
-    }).format(date);
   }
 </script>
 
@@ -70,19 +74,19 @@
   <div class="flex justify-center items-center h-64">
     <div class="animate-spin h-12 w-12 rounded-full border-4 border-indigo-500 border-t-transparent"></div>
   </div>
-{:else if $isAuthenticated}
+{:else if $isAuthenticated && $authStore.user}
   <div class="max-w-4xl mx-auto">
     <div class="bg-white dark:bg-slate-800 rounded-xl shadow-lg p-6 mb-6">
       <div class="flex flex-col md:flex-row md:items-center mb-6">
         <div class="flex items-center">
           <div class="h-20 w-20 rounded-full bg-indigo-100 dark:bg-indigo-800 flex items-center justify-center mr-6">
             <span class="text-2xl font-bold text-indigo-600 dark:text-indigo-300">
-              {$authStore.user?.username.charAt(0).toUpperCase()}
+              {$authStore.user.username.charAt(0).toUpperCase()}
             </span>
           </div>
           <div>
-            <h1 class="text-2xl font-bold text-slate-900 dark:text-white mb-1">{$authStore.user?.username}</h1>
-            <p class="text-slate-500 dark:text-slate-400">{$authStore.user?.email}</p>
+            <h1 class="text-2xl font-bold text-slate-900 dark:text-white mb-1">{$authStore.user.username}</h1>
+            <p class="text-slate-500 dark:text-slate-400">{$authStore.user.email}</p>
           </div>
         </div>
         
@@ -111,12 +115,12 @@
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <p class="text-sm text-slate-500 dark:text-slate-400 mb-1">Member Since</p>
-            <p class="font-medium text-slate-900 dark:text-white">June 1, 2023</p>
+            <p class="font-medium text-slate-900 dark:text-white">{formatDate($authStore.user.createdAt)}</p>
           </div>
           
           <div>
             <p class="text-sm text-slate-500 dark:text-slate-400 mb-1">Last Login</p>
-            <p class="font-medium text-slate-900 dark:text-white">Today</p>
+            <p class="font-medium text-slate-900 dark:text-white">{formatDate($authStore.user.lastLogin) || 'Now'}</p>
           </div>
         </div>
       </div>
@@ -138,7 +142,7 @@
           
           <div class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-4">
             <p class="text-sm text-slate-500 dark:text-slate-400 mb-1">Current Streak</p>
-            <p class="text-2xl font-bold text-indigo-600 dark:text-indigo-400">{stats.currentStreak} days</p>
+            <p class="text-2xl font-bold text-indigo-600 dark:text-indigo-400">{$authStore.user.streak || 0} days</p>
           </div>
           
           <div class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-4">
@@ -153,7 +157,7 @@
           
           <div class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-4">
             <p class="text-sm text-slate-500 dark:text-slate-400 mb-1">Last Study Session</p>
-            <p class="text-2xl font-bold text-indigo-600 dark:text-indigo-400">{formatDate(stats.lastStudyDate)}</p>
+            <p class="text-2xl font-bold text-indigo-600 dark:text-indigo-400">{formatDate($authStore.user.lastStudyDate)}</p>
           </div>
         </div>
         

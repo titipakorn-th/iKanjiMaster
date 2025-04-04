@@ -85,6 +85,8 @@
   function rateKanji(rating: number) {
     if (!currentKanji) return;
     
+    console.log('Rating kanji:', currentKanji.character, 'ID:', currentKanji.id, 'Rating:', rating);
+    
     // Record the rating
     reviewHistory[currentKanji.id] = rating;
     
@@ -106,10 +108,15 @@
     elapsedTime = Math.floor((Date.now() - startTime) / 1000);
     studyComplete = true;
     
+    console.log('Completing study session with review history:', reviewHistory);
+    console.log('Review history entries:', Object.entries(reviewHistory).map(([id, rating]) => 
+      `${id}: ${rating}`
+    ));
+    
     // Dispatch complete event with results
     dispatch('complete', {
       reviewHistory,
-      totalTime: elapsedTime
+      totalTime: elapsedTime * 1000 // Convert to milliseconds for API
     });
   }
   

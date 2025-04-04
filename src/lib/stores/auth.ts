@@ -8,6 +8,29 @@ interface AuthStore {
   error: string | null;
 }
 
+// Create custom event dispatchers
+const createAuthEvents = () => {
+  const listeners: Record<string, Array<() => void>> = {
+    login: [],
+    register: [],
+    logout: []
+  };
+  
+  return {
+    on(event: 'login' | 'register' | 'logout', callback: () => void) {
+      listeners[event].push(callback);
+      return () => {
+        listeners[event] = listeners[event].filter(cb => cb !== callback);
+      };
+    },
+    dispatch(event: 'login' | 'register' | 'logout') {
+      listeners[event].forEach(callback => callback());
+    }
+  };
+};
+
+export const authEvents = createAuthEvents();
+
 // Create the writable store with initial values
 const createAuthStore = () => {
   // Initial state
@@ -39,6 +62,10 @@ const createAuthStore = () => {
         }
         
         update(state => ({ ...state, user: data.user, loading: false }));
+        
+        // Dispatch login success event
+        authEvents.dispatch('login');
+        
         return data.user;
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Login failed';
@@ -65,7 +92,12 @@ const createAuthStore = () => {
         }
         
         // Auto-login after registration
-        return await authStore.login(email, password);
+        const user = await authStore.login(email, password);
+        
+        // Dispatch register success event
+        authEvents.dispatch('register');
+        
+        return user;
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Registration failed';
         update(state => ({ ...state, error: message, loading: false }));
@@ -80,6 +112,9 @@ const createAuthStore = () => {
       try {
         await fetch('/api/auth/logout', { method: 'POST' });
         update(state => ({ ...state, user: null, loading: false }));
+        
+        // Dispatch logout success event
+        authEvents.dispatch('logout');
       } catch (error) {
         console.error('Logout error:', error);
         update(state => ({ ...state, loading: false }));

@@ -29,7 +29,7 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
     
     return json({ 
       success: true, 
-      user: { id: user.id, username: user.username, email: user.email }
+      user: user
     });
   } catch (error) {
     console.error('Login error:', error);

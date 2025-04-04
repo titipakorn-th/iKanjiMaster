@@ -137,11 +137,11 @@
           class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md dark:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
         >
           <option value={null}>All Levels</option>
-          <option value={1}>N1</option>
-          <option value={2}>N2</option>
+          <option value={5}>N1</option>
+          <option value={4}>N2</option>
           <option value={3}>N3</option>
-          <option value={4}>N4</option>
-          <option value={5}>N5</option>
+          <option value={2}>N4</option>
+          <option value={1}>N5</option>
         </select>
       </div>
       

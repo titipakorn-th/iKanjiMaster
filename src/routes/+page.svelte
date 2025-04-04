@@ -2,14 +2,16 @@
   import { onMount } from 'svelte';
   import StatsDashboard from '$lib/components/StatsDashboard.svelte';
   import KanjiCard from '$lib/components/KanjiCard.svelte';
+  import { authStore, isAuthenticated } from '$lib/stores/auth';
   
   // Loading state and error handling
   let isLoadingKanji = false;
+  let isLoadingStats = false;
   let error = '';
   
-  // Sample data for demonstration
-  const dashboardStats = {
-    totalKanji: 1235, // Total count from the database - keep this as is
+  // Initialize with empty stats
+  let stats = {
+    totalKanji: 2136, // Keep total kanji count as this represents available kanji
     learningKanji: 0,
     masteredKanji: 0,
     currentStreak: 0,
@@ -18,15 +20,17 @@
     correctReviews: 0,
     averageAccuracy: 0,
     studyTimeMinutes: 0,
-    dailyGoal: 20, // Default daily goal
+    dailyGoal: 20,
     reviewsByDay: [
-      { date: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], count: 0 },
-      { date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], count: 0 },
-      { date: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], count: 0 },
-      { date: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], count: 0 },
-      { date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], count: 0 },
-      { date: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], count: 0 },
-      { date: new Date().toISOString().split('T')[0], count: 0 }
+      // Last 7 days with zero counts
+      ...Array.from({ length: 7 }, (_, i) => {
+        const date = new Date();
+        date.setDate(date.getDate() - 6 + i);
+        return { 
+          date: date.toISOString().split('T')[0], 
+          count: 0 
+        };
+      })
     ],
     levelDistribution: [
       { level: 5, count: 0 },
@@ -36,6 +40,57 @@
       { level: 1, count: 0 }
     ]
   };
+  
+  // Fetch user stats from API
+  async function fetchUserStats() {
+    if (!$isAuthenticated) return;
+    
+    isLoadingStats = true;
+    
+    try {
+      // Fetch stats from the API
+      const response = await fetch('/api/user/stats');
+      
+      if (response.ok) {
+        const data = await response.json();
+        
+        if (data.success && data.stats) {
+          // Update stats with real data
+          stats = {
+            ...stats,
+            learningKanji: data.stats.totalKanjiStudied,
+            masteredKanji: data.stats.masteredKanji || 0,
+            currentStreak: $authStore.user?.streak || 0,
+            longestStreak: $authStore.user?.streak || 0, // We don't track longest streak yet
+            totalReviews: data.stats.totalReviews || 0,
+            correctReviews: data.stats.correctReviews || 0,
+            averageAccuracy: data.stats.averageAccuracy,
+            studyTimeMinutes: data.stats.totalSessions * 5, // Approximate
+            dailyGoal: $authStore.user?.preferences?.studyGoalDaily || 20,
+          };
+          
+          console.log('Loaded user stats for home page:', stats);
+        }
+      }
+      
+      // Fetch review history for chart data
+      const reviewHistoryResponse = await fetch('/api/user/review-history');
+      
+      if (reviewHistoryResponse.ok) {
+        const historyData = await reviewHistoryResponse.json();
+        
+        if (historyData.success && historyData.reviewsByDay) {
+          // Update review history with real data - take last 7 days
+          stats.reviewsByDay = historyData.reviewsByDay.slice(-7);
+          console.log('Loaded review history for home page:', stats.reviewsByDay);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching user stats:', error);
+    } finally {
+      isLoadingStats = false;
+    }
+  }
   
   // Kanji data with proper structure matching KanjiCard component requirements
   let todaysKanji = [
@@ -178,6 +233,7 @@
   
   onMount(() => {
     fetchRandomKanji();
+    fetchUserStats();
   });
 </script>
 
@@ -217,16 +273,16 @@
       <h2 class="text-lg font-semibold text-slate-900 dark:text-white mb-4">Current Streak</h2>
       <div class="flex items-baseline">
         <div class="text-4xl font-bold text-indigo-600 dark:text-indigo-400">
-          {dashboardStats.currentStreak}
+          {stats.currentStreak}
         </div>
         <div class="ml-2 text-slate-600 dark:text-slate-400">days</div>
       </div>
       <p class="text-slate-600 dark:text-slate-400 text-sm mt-2 mb-4">
-        Keep your streak going! Your longest streak is {dashboardStats.longestStreak} days.
+        Keep your streak going! Your longest streak is {stats.longestStreak} days.
       </p>
       <div class="grid grid-cols-7 gap-1">
         {#each Array(7) as _, i}
-          <div class={`h-2 rounded-sm ${i < dashboardStats.currentStreak % 7 ? 'bg-indigo-500' : 'bg-slate-200 dark:bg-slate-700'}`}></div>
+          <div class={`h-2 rounded-sm ${i < stats.currentStreak % 7 ? 'bg-indigo-500' : 'bg-slate-200 dark:bg-slate-700'}`}></div>
         {/each}
       </div>
     </div>
@@ -336,18 +392,18 @@
     <h2 class="text-2xl font-bold text-slate-900 dark:text-white mb-6">Your Progress</h2>
     
     <StatsDashboard 
-      totalKanji={dashboardStats.totalKanji}
-      learningKanji={dashboardStats.learningKanji}
-      masteredKanji={dashboardStats.masteredKanji}
-      currentStreak={dashboardStats.currentStreak}
-      longestStreak={dashboardStats.longestStreak}
-      totalReviews={dashboardStats.totalReviews}
-      correctReviews={dashboardStats.correctReviews}
-      averageAccuracy={dashboardStats.averageAccuracy}
-      studyTimeMinutes={dashboardStats.studyTimeMinutes}
-      dailyGoal={dashboardStats.dailyGoal}
-      reviewsByDay={dashboardStats.reviewsByDay}
-      levelDistribution={dashboardStats.levelDistribution}
+      totalKanji={stats.totalKanji}
+      learningKanji={stats.learningKanji}
+      masteredKanji={stats.masteredKanji}
+      currentStreak={stats.currentStreak}
+      longestStreak={stats.longestStreak}
+      totalReviews={stats.totalReviews}
+      correctReviews={stats.correctReviews}
+      averageAccuracy={stats.averageAccuracy}
+      studyTimeMinutes={stats.studyTimeMinutes}
+      dailyGoal={stats.dailyGoal}
+      reviewsByDay={stats.reviewsByDay}
+      levelDistribution={stats.levelDistribution}
     />
   </div>
 </div>

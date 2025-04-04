@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { authStore, isAuthenticated } from '$lib/stores/auth';
-  import { onMount } from 'svelte';
+  import { authStore, isAuthenticated, authEvents } from '$lib/stores/auth';
+  import { onMount, onDestroy } from 'svelte';
+  import { goto } from '$app/navigation';
   
   // Form mode
   type FormMode = 'login' | 'register';
@@ -21,6 +22,21 @@
   // Form state
   let isSubmitting = false;
   let formError = '';
+  
+  // Set up auth event listeners for redirects
+  const unsubscribeLogin = authEvents.on('login', () => {
+    goto('/');
+  });
+  
+  const unsubscribeRegister = authEvents.on('register', () => {
+    goto('/');
+  });
+  
+  // Clean up event listeners when component is destroyed
+  onDestroy(() => {
+    unsubscribeLogin();
+    unsubscribeRegister();
+  });
   
   // Toggle between login and register
   function toggleMode() {
@@ -64,6 +80,8 @@
       } else {
         await authStore.register(username, email, password);
       }
+      
+      // Note: Redirection is now handled by the authEvents system
     } catch (error) {
       formError = error instanceof Error ? error.message : 'An error occurred';
     } finally {

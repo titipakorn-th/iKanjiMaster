@@ -86,11 +86,11 @@
                    focus:ring-indigo-500 focus:border-indigo-500 dark:bg-slate-700 dark:text-white"
           >
             <option value="">Any Level</option>
-            <option value="1">N1</option>
-            <option value="2">N2</option>
+            <option value="5">N1</option>
+            <option value="4">N2</option>
             <option value="3">N3</option>
-            <option value="4">N4</option>
-            <option value="5">N5</option>
+            <option value="2">N4</option>
+            <option value="1">N5</option>
           </select>
         </div>
         
