@@ -1,398 +1,231 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import KanjiBrowser from '$lib/components/KanjiBrowser.svelte';
+  import { page } from '$app/stores';
+  import { goto } from '$app/navigation';
   import KanjiCard from '$lib/components/KanjiCard.svelte';
+  import type { PageData } from './$types';
   
-  // State for selected kanji and view mode
-  let selectedKanjiIds: string[] = [];
-  let viewMode: 'browse' | 'detail' = 'browse';
-  let selectedKanjiId: string | null = null;
-  let isCreatingDeck = false;
-  let newDeckName = '';
-  let newDeckDescription = '';
+  export let data: PageData;
   
-  // Sample kanji data (in a real app, this would come from the database)
-  const allKanji = [
-    {
-      id: 'k1',
-      character: '水',
-      meaning: 'water',
-      jlptLevel: 5,
-      strokeCount: 4
-    },
-    {
-      id: 'k2',
-      character: '火',
-      meaning: 'fire',
-      jlptLevel: 5,
-      strokeCount: 4
-    },
-    {
-      id: 'k3',
-      character: '木',
-      meaning: 'tree, wood',
-      jlptLevel: 5,
-      strokeCount: 4
-    },
-    {
-      id: 'k4',
-      character: '金',
-      meaning: 'gold, money',
-      jlptLevel: 5,
-      strokeCount: 8
-    },
-    {
-      id: 'k5',
-      character: '土',
-      meaning: 'earth, soil',
-      jlptLevel: 5,
-      strokeCount: 3
-    },
-    {
-      id: 'k6',
-      character: '日',
-      meaning: 'sun, day',
-      jlptLevel: 5,
-      strokeCount: 4
-    },
-    {
-      id: 'k7',
-      character: '月',
-      meaning: 'moon, month',
-      jlptLevel: 5,
-      strokeCount: 4
-    },
-    {
-      id: 'k8',
-      character: '山',
-      meaning: 'mountain',
-      jlptLevel: 5,
-      strokeCount: 3
-    },
-    {
-      id: 'k9',
-      character: '川',
-      meaning: 'river',
-      jlptLevel: 5,
-      strokeCount: 3
-    },
-    {
-      id: 'k10',
-      character: '田',
-      meaning: 'rice field',
-      jlptLevel: 5,
-      strokeCount: 5
-    },
-    {
-      id: 'k11',
-      character: '人',
-      meaning: 'person',
-      jlptLevel: 5,
-      strokeCount: 2
-    },
-    {
-      id: 'k12',
-      character: '口',
-      meaning: 'mouth',
-      jlptLevel: 5,
-      strokeCount: 3
+  let query: string = data.filters.query || '';
+  let jlptLevel: string = data.filters.jlptLevel !== null ? String(data.filters.jlptLevel) : '';
+  let minStrokes: string = data.filters.minStrokes !== null ? String(data.filters.minStrokes) : '';
+  let maxStrokes: string = data.filters.maxStrokes !== null ? String(data.filters.maxStrokes) : '';
+  
+  // Helper function to determine which page numbers to show in pagination
+  function getPageNumber(index: number, currentPage: number, totalPages: number): number {
+    if (totalPages <= 5) {
+      return index + 1;
     }
-  ];
-  
-  // Detailed kanji data (in a real app, this would come from the database)
-  const detailedKanjiMap: Record<string, any> = {
-    'k1': {
-      id: 'k1',
-      character: '水',
-      onyomi: 'スイ',
-      kunyomi: 'みず',
-      meaning: 'water',
-      jlptLevel: 5,
-      strokeCount: 4,
-      examples: [
-        { word: '水曜日', reading: 'すいようび', meaning: 'Wednesday' },
-        { word: '水泳', reading: 'すいえい', meaning: 'swimming' },
-        { word: '冷水', reading: 'れいすい', meaning: 'cold water' }
-      ]
-    },
-    'k2': {
-      id: 'k2',
-      character: '火',
-      onyomi: 'カ',
-      kunyomi: 'ひ',
-      meaning: 'fire',
-      jlptLevel: 5,
-      strokeCount: 4,
-      examples: [
-        { word: '火曜日', reading: 'かようび', meaning: 'Tuesday' },
-        { word: '火山', reading: 'かざん', meaning: 'volcano' },
-        { word: '花火', reading: 'はなび', meaning: 'fireworks' }
-      ]
-    },
-    'k3': {
-      id: 'k3',
-      character: '木',
-      onyomi: 'モク, ボク',
-      kunyomi: 'き',
-      meaning: 'tree, wood',
-      jlptLevel: 5,
-      strokeCount: 4,
-      examples: [
-        { word: '木曜日', reading: 'もくようび', meaning: 'Thursday' },
-        { word: '木材', reading: 'もくざい', meaning: 'lumber, timber' },
-        { word: '木々', reading: 'きぎ', meaning: 'trees' }
-      ]
+    
+    // For more than 5 pages, try to keep current page in the middle
+    if (currentPage <= 3) {
+      return index + 1;
+    } else if (currentPage >= totalPages - 2) {
+      return totalPages - 4 + index;
+    } else {
+      return currentPage - 2 + index;
     }
-  };
-  
-  // Function to handle viewing a kanji's details
-  function viewKanji(event: CustomEvent<{ id: string }>) {
-    selectedKanjiId = event.detail.id;
-    viewMode = 'detail';
   }
   
-  // Function to go back to browse mode
-  function backToBrowse() {
-    viewMode = 'browse';
-    selectedKanjiId = null;
-  }
-  
-  // Function to handle kanji selection
-  function handleKanjiSelect(event: CustomEvent<{ id: string; selected: boolean }>) {
-    // Selection is handled by the KanjiBrowser component
-  }
-  
-  // Function to add selected kanji to a new deck
-  function showCreateDeckForm() {
-    isCreatingDeck = true;
-  }
-  
-  // Function to create a new deck with the selected kanji
-  function createDeck() {
-    if (!newDeckName.trim()) return;
+  // Handle form submission
+  function handleSearch() {
+    const params = new URLSearchParams();
     
-    // In a real app, this would save the new deck to the database
-    console.log('Creating new deck:', {
-      name: newDeckName,
-      description: newDeckDescription,
-      kanjiIds: selectedKanjiIds
-    });
+    if (query) params.set('q', query);
+    if (jlptLevel) params.set('jlpt', jlptLevel);
+    if (minStrokes) params.set('min', minStrokes);
+    if (maxStrokes) params.set('max', maxStrokes);
     
-    // Reset form
-    newDeckName = '';
-    newDeckDescription = '';
-    selectedKanjiIds = [];
-    isCreatingDeck = false;
+    // Reset to first page when search changes
+    params.set('page', '1');
+    
+    goto(`/browse?${params.toString()}`);
   }
   
-  // Function to cancel deck creation
-  function cancelDeckCreation() {
-    isCreatingDeck = false;
-    newDeckName = '';
-    newDeckDescription = '';
+  // Navigate to a specific page
+  function goToPage(pageNum: number) {
+    const params = new URLSearchParams($page.url.searchParams);
+    params.set('page', pageNum.toString());
+    goto(`/browse?${params.toString()}`);
   }
 </script>
 
-<div>
-  {#if viewMode === 'browse'}
-    <!-- Browse mode -->
-    <div class="max-w-7xl mx-auto">
-      <div class="flex justify-between items-center mb-6">
-        <h1 class="text-3xl font-bold text-slate-900 dark:text-white">Browse Kanji</h1>
+<svelte:head>
+  <title>Browse Kanji | iKanjiMaster</title>
+</svelte:head>
+
+<div class="container mx-auto px-4 py-8">
+  <h1 class="text-3xl font-bold mb-8 text-gray-800 dark:text-white">Browse Kanji Database</h1>
+  
+  <!-- Search and Filter Form -->
+  <div class="bg-white dark:bg-slate-800 rounded-lg shadow-md p-6 mb-8">
+    <form on:submit|preventDefault={handleSearch} class="space-y-4">
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="md:col-span-2">
+          <label for="query" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Search
+          </label>
+          <input
+            type="text"
+            id="query"
+            bind:value={query}
+            placeholder="Search by character or meaning"
+            class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm 
+                   focus:ring-indigo-500 focus:border-indigo-500 dark:bg-slate-700 dark:text-white"
+          />
+        </div>
         
-        {#if selectedKanjiIds.length > 0}
-          <div class="flex space-x-3">
-            <button 
-              on:click={showCreateDeckForm}
-              class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors"
-            >
-              Create Deck
-            </button>
-            <button 
-              on:click={() => selectedKanjiIds = []}
-              class="px-4 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-900 dark:text-white rounded-lg transition-colors"
-            >
-              Clear Selection ({selectedKanjiIds.length})
-            </button>
-          </div>
-        {/if}
-      </div>
-      
-      <KanjiBrowser 
-        kanjiItems={allKanji} 
-        bind:selectedKanjiIds={selectedKanjiIds}
-        on:select={handleKanjiSelect}
-        on:view={viewKanji}
-      />
-    </div>
-    
-    <!-- Create deck modal -->
-    {#if isCreatingDeck}
-      <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-        <div class="bg-white dark:bg-slate-800 rounded-xl shadow-lg p-6 max-w-md w-full">
-          <h2 class="text-xl font-bold text-slate-900 dark:text-white mb-4">Create New Deck</h2>
-          
-          <div class="space-y-4">
-            <div>
-              <label for="deckName" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                Deck Name*
-              </label>
-              <input 
-                type="text" 
-                id="deckName" 
-                bind:value={newDeckName}
-                placeholder="Enter deck name" 
-                class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md dark:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-            
-            <div>
-              <label for="deckDescription" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                Description
-              </label>
-              <textarea 
-                id="deckDescription" 
-                bind:value={newDeckDescription}
-                placeholder="Enter deck description" 
-                rows="3"
-                class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md dark:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              ></textarea>
-            </div>
-            
-            <div>
-              <div class="text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                Selected Kanji ({selectedKanjiIds.length})
-              </div>
-              <div class="flex flex-wrap gap-2 p-3 bg-slate-100 dark:bg-slate-700 rounded-md">
-                {#each selectedKanjiIds as kanjiId}
-                  {#if allKanji.find(k => k.id === kanjiId)}
-                    <div class="text-xl font-japanese">
-                      {allKanji.find(k => k.id === kanjiId)?.character}
-                    </div>
-                  {/if}
-                {/each}
-              </div>
-            </div>
-            
-            <div class="flex justify-end space-x-3 mt-6">
-              <button 
-                on:click={cancelDeckCreation}
-                class="px-4 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-900 dark:text-white rounded-lg transition-colors"
-              >
-                Cancel
-              </button>
-              <button 
-                on:click={createDeck}
-                class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors"
-                disabled={!newDeckName.trim()}
-              >
-                Create Deck
-              </button>
-            </div>
+        <div>
+          <label for="jlptLevel" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            JLPT Level
+          </label>
+          <select
+            id="jlptLevel"
+            bind:value={jlptLevel}
+            class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm 
+                   focus:ring-indigo-500 focus:border-indigo-500 dark:bg-slate-700 dark:text-white"
+          >
+            <option value="">Any Level</option>
+            <option value="1">N1</option>
+            <option value="2">N2</option>
+            <option value="3">N3</option>
+            <option value="4">N4</option>
+            <option value="5">N5</option>
+          </select>
+        </div>
+        
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Stroke Count
+          </label>
+          <div class="grid grid-cols-2 gap-2">
+            <input
+              type="number"
+              bind:value={minStrokes}
+              placeholder="Min"
+              min="1"
+              max="30"
+              class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm 
+                     focus:ring-indigo-500 focus:border-indigo-500 dark:bg-slate-700 dark:text-white"
+            />
+            <input
+              type="number"
+              bind:value={maxStrokes}
+              placeholder="Max"
+              min="1"
+              max="30"
+              class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm 
+                     focus:ring-indigo-500 focus:border-indigo-500 dark:bg-slate-700 dark:text-white"
+            />
           </div>
         </div>
       </div>
-    {/if}
-  {:else if viewMode === 'detail' && selectedKanjiId && detailedKanjiMap[selectedKanjiId]}
-    <!-- Detail mode -->
-    <div class="max-w-4xl mx-auto">
-      <div class="mb-6">
-        <button 
-          on:click={backToBrowse}
-          class="flex items-center text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors"
+      
+      <div class="flex justify-end">
+        <button
+          type="submit"
+          class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 
+                 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500
+                 dark:bg-indigo-700 dark:hover:bg-indigo-800"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
-            <path fill-rule="evenodd" d="M9.707 14.707a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 1.414L7.414 9H15a1 1 0 110 2H7.414l2.293 2.293a1 1 0 010 1.414z" clip-rule="evenodd" />
-          </svg>
-          Back to Browse
+          Search
         </button>
       </div>
-      
-      <div class="bg-white dark:bg-slate-800 rounded-xl shadow-lg p-6 mb-6">
-        <div class="flex flex-col md:flex-row md:items-center mb-6">
-          <div class="md:w-1/3 mb-4 md:mb-0 flex justify-center">
-            <div class="text-8xl font-bold text-slate-900 dark:text-white font-japanese">
-              {detailedKanjiMap[selectedKanjiId].character}
-            </div>
-          </div>
-          
-          <div class="md:w-2/3 md:pl-6">
-            <h1 class="text-2xl font-bold text-slate-900 dark:text-white mb-2">
-              {detailedKanjiMap[selectedKanjiId].meaning}
-            </h1>
-            
-            <div class="grid grid-cols-2 gap-4 mb-4">
-              <div>
-                <span class="text-sm text-slate-500 dark:text-slate-400">On'yomi</span>
-                <p class="text-slate-900 dark:text-white font-medium">
-                  {detailedKanjiMap[selectedKanjiId].onyomi || 'N/A'}
-                </p>
-              </div>
-              <div>
-                <span class="text-sm text-slate-500 dark:text-slate-400">Kun'yomi</span>
-                <p class="text-slate-900 dark:text-white font-medium">
-                  {detailedKanjiMap[selectedKanjiId].kunyomi || 'N/A'}
-                </p>
-              </div>
-            </div>
-            
-            <div class="flex flex-wrap gap-2">
-              {#if detailedKanjiMap[selectedKanjiId].jlptLevel}
-                <div class="bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200 px-3 py-1 rounded-full text-xs font-semibold">
-                  JLPT N{detailedKanjiMap[selectedKanjiId].jlptLevel}
-                </div>
-              {/if}
-              
-              {#if detailedKanjiMap[selectedKanjiId].strokeCount}
-                <div class="bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200 px-3 py-1 rounded-full text-xs font-semibold">
-                  {detailedKanjiMap[selectedKanjiId].strokeCount} strokes
-                </div>
-              {/if}
-            </div>
-          </div>
-        </div>
-        
-        <!-- Examples section -->
-        {#if detailedKanjiMap[selectedKanjiId].examples && detailedKanjiMap[selectedKanjiId].examples.length > 0}
-          <div class="border-t border-slate-200 dark:border-slate-700 pt-6">
-            <h2 class="text-xl font-bold text-slate-900 dark:text-white mb-4">Example Words</h2>
-            
-            <ul class="space-y-4">
-              {#each detailedKanjiMap[selectedKanjiId].examples as example}
-                <li class="border-b border-slate-100 dark:border-slate-700 pb-4">
-                  <div class="flex justify-between">
-                    <span class="text-lg font-medium font-japanese">{example.word}</span>
-                    <span class="text-sm text-slate-500 dark:text-slate-400">{example.reading}</span>
-                  </div>
-                  <p class="text-slate-600 dark:text-slate-300 mt-1">{example.meaning}</p>
-                </li>
-              {/each}
-            </ul>
-          </div>
-        {/if}
-      </div>
-      
-      <!-- Kanji card (visual representation) -->
-      <div class="mb-6">
-        <h2 class="text-xl font-bold text-slate-900 dark:text-white mb-4">Flashcard Preview</h2>
-        
-        <KanjiCard 
-          character={detailedKanjiMap[selectedKanjiId].character}
-          onyomi={detailedKanjiMap[selectedKanjiId].onyomi}
-          kunyomi={detailedKanjiMap[selectedKanjiId].kunyomi}
-          meaning={detailedKanjiMap[selectedKanjiId].meaning}
-          jlptLevel={detailedKanjiMap[selectedKanjiId].jlptLevel}
-          strokeCount={detailedKanjiMap[selectedKanjiId].strokeCount}
-          examples={detailedKanjiMap[selectedKanjiId].examples}
-        />
-      </div>
+    </form>
+  </div>
+  
+  <!-- Results display -->
+  {#if data.kanji.length === 0}
+    <div class="text-center py-12 bg-white dark:bg-slate-800 rounded-lg shadow-md">
+      <p class="text-lg text-gray-600 dark:text-gray-400">No kanji found matching your criteria.</p>
+      <p class="mt-2 text-gray-500 dark:text-gray-500">Try adjusting your search filters.</p>
     </div>
+  {:else}
+    <!-- Results stats -->
+    <div class="mb-4 flex justify-between items-center">
+      <p class="text-sm text-gray-600 dark:text-gray-400">
+        Showing {data.pagination.offset + 1}-{Math.min(data.pagination.offset + data.kanji.length, data.pagination.total)} 
+        of {data.pagination.total} results
+      </p>
+    </div>
+    
+    <!-- Kanji grid -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 mb-8">
+      {#each data.kanji as kanji}
+        <KanjiCard {kanji}>
+          <div slot="actions" class="flex gap-2 items-center mt-2">
+            <a
+              href={`/kanji/${kanji.id}`}
+              class="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
+            >
+              Details
+            </a>
+            <span class="text-gray-300 dark:text-gray-600">|</span>
+            <a
+              href={`/study?kanjiId=${kanji.id}`}
+              class="text-sm text-green-600 dark:text-green-400 hover:underline"
+            >
+              Study
+            </a>
+          </div>
+        </KanjiCard>
+      {/each}
+    </div>
+    
+    <!-- Pagination controls -->
+    {#if data.pagination.totalPages > 1}
+      <div class="flex justify-center mt-8">
+        <nav class="inline-flex rounded-md shadow-sm" aria-label="Pagination">
+          <!-- Previous page button -->
+          <button
+            on:click={() => goToPage(data.pagination.currentPage - 1)}
+            disabled={!data.pagination.hasPrevPage}
+            class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 
+                   dark:border-gray-600 bg-white dark:bg-slate-800 text-sm font-medium text-gray-500 
+                   dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-700 disabled:opacity-50
+                   disabled:cursor-not-allowed"
+          >
+            <span class="sr-only">Previous</span>
+            <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+              <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" />
+            </svg>
+          </button>
+          
+          <!-- Page numbers -->
+          {#each Array(Math.min(5, data.pagination.totalPages)) as _, i}
+            {#if getPageNumber(i, data.pagination.currentPage, data.pagination.totalPages) <= data.pagination.totalPages}
+              {@const pageNum = getPageNumber(i, data.pagination.currentPage, data.pagination.totalPages)}
+              <button
+                on:click={() => goToPage(pageNum)}
+                class={`
+                  relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600
+                  text-sm font-medium 
+                  ${pageNum === data.pagination.currentPage 
+                    ? 'z-10 bg-indigo-50 dark:bg-indigo-900 border-indigo-500 dark:border-indigo-700 text-indigo-600 dark:text-indigo-200' 
+                    : 'bg-white dark:bg-slate-800 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-700'}
+                `}
+              >
+                {pageNum}
+              </button>
+            {/if}
+          {/each}
+          
+          <!-- Next page button -->
+          <button
+            on:click={() => goToPage(data.pagination.currentPage + 1)}
+            disabled={!data.pagination.hasNextPage}
+            class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 
+                   dark:border-gray-600 bg-white dark:bg-slate-800 text-sm font-medium text-gray-500 
+                   dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-700 disabled:opacity-50
+                   disabled:cursor-not-allowed"
+          >
+            <span class="sr-only">Next</span>
+            <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+              <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+            </svg>
+          </button>
+        </nav>
+      </div>
+    {/if}
   {/if}
-</div>
-
-<style>
-  /* Font for Japanese characters */
-  .font-japanese {
-    font-family: "Noto Sans JP", "Hiragino Sans", "Meiryo", sans-serif;
-  }
-</style> 
+</div> 

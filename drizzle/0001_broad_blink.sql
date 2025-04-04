@@ -1,0 +1,1 @@
+ALTER TABLE `kanjis` ADD `sentence_examples` text;

@@ -11,7 +11,26 @@
     meaning: string;
     jlptLevel: number | null;
     strokeCount: number | null;
-    examples: { word: string; reading: string; meaning: string }[];
+    examples: { 
+      word: string; 
+      reading: string; 
+      howToRead?: string;
+      meaning: string;
+      sentence?: string;
+      sentenceReading?: string;
+      sentenceMeaning?: string;
+      furigana?: Record<string, string>;
+    }[] | null;
+    sentence_examples?: { 
+      word: string; 
+      reading: string; 
+      howToRead?: string;
+      meaning: string;
+      sentence?: string;
+      sentenceReading?: string;
+      sentenceMeaning?: string;
+      furigana?: Record<string, string>;
+    }[] | null;
   };
   
   type StudyMode = 'kanji-to-meaning' | 'meaning-to-kanji' | 'reading-to-kanji';
@@ -46,6 +65,21 @@
   $: progress = currentIndex + 1;
   $: totalItems = kanjiItems.length;
   $: progressPercentage = totalItems > 0 ? (progress / totalItems) * 100 : 0;
+  
+  // Helper to combine examples and sentence_examples if needed
+  $: combinedExamples = currentKanji ? (
+    currentKanji.examples || []
+  ).concat(
+    (currentKanji.sentence_examples || []).filter(se => 
+      !currentKanji.examples?.some(e => e.word === se.word)
+    )
+  ) : [];
+  
+  // Helper to check if we have sentences
+  $: hasSentences = currentKanji ? (
+    (currentKanji.examples || []).some(e => e.sentence) || 
+    (currentKanji.sentence_examples || []).some(e => e.sentence)
+  ) : false;
   
   // Handle rating the current kanji
   function rateKanji(rating: number) {
@@ -94,6 +128,30 @@
     return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
   }
   
+  // Helper function to apply furigana to specific kanji in a sentence
+  function applyFurigana(sentence: string, furiganaMap: Record<string, string> = {}) {
+    if (!sentence || Object.keys(furiganaMap).length === 0) return sentence;
+    
+    // Convert the sentence to an array of characters
+    const characters = Array.from(sentence);
+    
+    // Create HTML with ruby tags only for kanji with readings
+    let html = '';
+    
+    for (const char of characters) {
+      if (furiganaMap[char]) {
+        html += `<ruby>${char}<rt>${furiganaMap[char]}</rt></ruby>`;
+      } else {
+        html += char;
+      }
+    }
+    
+    return html;
+  }
+  
+  // Create a test sentence with furigana for debugging
+  const testSentence = applyFurigana("漢字の例", {"漢": "かん", "字": "じ"});
+  
   // Initialize timer on component creation
   startTimer();
 </script>
@@ -126,7 +184,7 @@
         
         <div class="bg-slate-100 dark:bg-slate-700 p-4 rounded-lg">
           <div class="text-2xl font-bold text-slate-900 dark:text-white">
-            {Math.round(totalItems / (elapsedTime / 60))}
+            {Math.round(totalItems / (elapsedTime / 60)) || 0}
           </div>
           <div class="text-sm text-slate-500 dark:text-slate-400">Cards Per Minute</div>
         </div>
@@ -171,17 +229,127 @@
     </div>
     
     {#if currentKanji}
-      <!-- Kanji Card -->
-      <KanjiCard 
-        character={currentKanji.character}
-        onyomi={currentKanji.onyomi}
-        kunyomi={currentKanji.kunyomi}
-        meaning={currentKanji.meaning}
-        jlptLevel={currentKanji.jlptLevel}
-        strokeCount={currentKanji.strokeCount}
-        examples={currentKanji.examples}
-        bind:flipped={flipped}
-      />
+      <!-- Study card based on mode -->
+      <div class="bg-white dark:bg-slate-800 rounded-lg shadow-md overflow-hidden mb-4">
+        <div class="p-6 text-center">
+          {#if !showAnswer}
+            <!-- Question side -->
+            {#if studyMode === 'kanji-to-meaning'}
+              <div class="text-9xl mb-6 font-bold">
+                {currentKanji.character}
+              </div>
+              {#if combinedExamples.length > 0}
+                <p class="text-sm text-indigo-600 dark:text-indigo-400">
+                  Flip to see {combinedExamples.length} example{combinedExamples.length !== 1 ? 's' : ''}
+                  {hasSentences ? ' with sentences' : ''}
+                </p>
+              {/if}
+            {:else if studyMode === 'meaning-to-kanji'}
+              <div class="text-4xl mb-6 font-bold">
+                {currentKanji.meaning}
+              </div>
+              {#if combinedExamples.length > 0}
+                <p class="text-sm text-indigo-600 dark:text-indigo-400">
+                  Flip to see {combinedExamples.length} example{combinedExamples.length !== 1 ? 's' : ''}
+                  {hasSentences ? ' with sentences' : ''}
+                </p>
+              {/if}
+            {:else if studyMode === 'reading-to-kanji'}
+              <div class="text-4xl mb-6 font-bold">
+                {currentKanji.onyomi || ''} / {currentKanji.kunyomi || ''}
+              </div>
+              {#if combinedExamples.length > 0}
+                <p class="text-sm text-indigo-600 dark:text-indigo-400">
+                  Flip to see {combinedExamples.length} example{combinedExamples.length !== 1 ? 's' : ''}
+                  {hasSentences ? ' with sentences' : ''}
+                </p>
+              {/if}
+            {/if}
+          {:else}
+            <!-- Answer side -->
+            <div class="space-y-6">
+              <div class="text-6xl mb-2 font-bold">
+                {currentKanji.character}
+              </div>
+              
+              <div class="text-2xl font-medium">
+                {currentKanji.meaning}
+              </div>
+              
+              {#if currentKanji.onyomi || currentKanji.kunyomi}
+                <div class="flex justify-center space-x-8">
+                  {#if currentKanji.onyomi}
+                    <div>
+                      <span class="block text-sm font-medium text-gray-600 dark:text-gray-400">音読み (Onyomi)</span>
+                      <span class="text-lg">{currentKanji.onyomi}</span>
+                    </div>
+                  {/if}
+                  
+                  {#if currentKanji.kunyomi}
+                    <div>
+                      <span class="block text-sm font-medium text-gray-600 dark:text-gray-400">訓読み (Kunyomi)</span>
+                      <span class="text-lg">{currentKanji.kunyomi}</span>
+                    </div>
+                  {/if}
+                </div>
+              {/if}
+              
+              <!-- Test furigana usage -->
+              <div class="hidden">
+                {@html testSentence}
+              </div>
+              
+              {#if combinedExamples.length > 0}
+                <div class="mt-4 text-left max-w-lg mx-auto">
+                  <h4 class="font-medium text-sm text-gray-600 dark:text-gray-400 mb-2">Example Words</h4>
+                  <ul class="space-y-2">
+                    {#each combinedExamples.filter(e => e.word).slice(0, 2) as example}
+                      <li class="text-sm bg-indigo-50 dark:bg-indigo-900/30 p-2 rounded">
+                        <span class="font-bold">{example.word}</span>
+                        {#if example.howToRead}
+                          <span class="text-gray-500 dark:text-gray-400">「{example.howToRead}」</span>
+                        {:else if example.reading}
+                          <span class="text-gray-500 dark:text-gray-400">「{example.reading}」</span>
+                        {/if}
+                        <span class="block">{example.meaning}</span>
+                      </li>
+                    {/each}
+                  </ul>
+                </div>
+              {/if}
+              
+              {#if hasSentences}
+                <div class="mt-3 text-left max-w-lg mx-auto">
+                  <h4 class="font-medium text-sm text-gray-600 dark:text-gray-400 mb-2">Example Sentences</h4>
+                  <ul class="space-y-3">
+                    {#each combinedExamples.filter(e => e.sentence).slice(0, 2) as example}
+                      <li class="text-sm bg-green-50 dark:bg-green-900/30 p-3 rounded">
+                        <div class="font-medium">
+                          {#if example.furigana && Object.keys(example.furigana).length > 0}
+                            {@html applyFurigana(example.sentence || '', example.furigana)}
+                          {:else}
+                            {example.sentence}
+                          {/if}
+                        </div>
+                        {#if example.sentenceReading}
+                          <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            {example.sentenceReading}
+                          </div>
+                        {/if}
+                        {#if example.sentenceMeaning}
+                          <div class="text-sm text-gray-700 dark:text-gray-300 italic mt-1 border-t border-gray-200 dark:border-gray-700 pt-1">
+                            {example.sentenceMeaning}
+                          </div>
+                        {/if}
+                      </li>
+                    {/each}
+                  </ul>
+                </div>
+              {/if}
+            </div>
+          {/if}
+        </div>
+      </div>
       
       <!-- Show/Hide Answer Button -->
       <div class="flex justify-center mt-6 mb-4">
@@ -227,4 +395,22 @@
       {/if}
     {/if}
   {/if}
-</div> 
+</div>
+
+<style>
+  /* Furigana styling */
+  ruby {
+    display: inline-flex;
+    flex-direction: column-reverse;
+    line-height: 1.4;
+    text-align: center;
+  }
+  
+  rt {
+    font-size: 0.6em;
+    color: #6b7280;
+    line-height: 1.2;
+    text-align: center;
+    margin-bottom: -0.2em;
+  }
+</style> 

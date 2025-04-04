@@ -15,22 +15,30 @@
 		"db:start": "docker compose up",
 		"db:push": "drizzle-kit push",
 		"db:migrate": "bun src/scripts/setup-db.ts",
+		"db:migrate:node": "node src/scripts/migrate-db.js",
+		"db:setup": "node src/scripts/db-setup.js",
 		"db:studio": "drizzle-kit studio",
-		"db:generate": "drizzle-kit generate"
+		"db:generate": "drizzle-kit generate",
+		"db:enhance-examples": "node src/scripts/enhance-kanji-examples.js"
 	},
 	"devDependencies": {
 		"@eslint/compat": "^1.2.5",
 		"@eslint/js": "^9.18.0",
+		"@lucia-auth/adapter-sqlite": "^3.0.2",
 		"@sveltejs/adapter-static": "^3.0.8",
 		"@sveltejs/kit": "^2.16.0",
 		"@sveltejs/vite-plugin-svelte": "^5.0.0",
 		"@tailwindcss/vite": "^4.0.0",
+		"@types/bcrypt": "^5.0.2",
 		"@types/better-sqlite3": "^7.6.12",
+		"bcrypt": "^5.1.1",
 		"drizzle-kit": "^0.30.6",
 		"eslint": "^9.18.0",
 		"eslint-config-prettier": "^10.0.1",
 		"eslint-plugin-svelte": "^3.0.0",
 		"globals": "^16.0.0",
+		"jwt-simple": "^0.5.6",
+		"lucia": "^3.2.2",
 		"prettier": "^3.4.2",
 		"prettier-plugin-svelte": "^3.3.3",
 		"prettier-plugin-tailwindcss": "^0.6.11",
@@ -48,6 +56,7 @@
 		"csv-parse": "^5.6.0",
 		"dotenv": "^16.4.7",
 		"drizzle-orm": "^0.41.0",
+		"openai": "^4.91.1",
 		"postgres": "^3.4.5"
 	}
 }

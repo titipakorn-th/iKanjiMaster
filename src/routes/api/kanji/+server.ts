@@ -1,68 +1,59 @@
 import { json } from '@sveltejs/kit';
-import { db } from '$lib/server/db/db';
-import { kanjis } from '$lib/server/db/schema';
-import { eq, like, and, or, between, isNull, not, sql } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
+import { searchKanji, getKanjiById } from '$lib/server/db/utils';
 
-// GET endpoint to fetch kanji with optional filtering
 export const GET: RequestHandler = async ({ url }) => {
   try {
-    // Parse query parameters
-    const searchQuery = url.searchParams.get('search') || '';
-    const jlptLevel = url.searchParams.get('jlpt') ? parseInt(url.searchParams.get('jlpt') || '', 10) : null;
-    const minStrokes = url.searchParams.get('minStrokes') ? parseInt(url.searchParams.get('minStrokes') || '', 10) : null;
-    const maxStrokes = url.searchParams.get('maxStrokes') ? parseInt(url.searchParams.get('maxStrokes') || '', 10) : null;
+    // Extract query parameters
+    const query = url.searchParams.get('query') || '';
+    const limitParam = url.searchParams.get('limit');
+    const offsetParam = url.searchParams.get('offset');
+    const jlptLevelParam = url.searchParams.get('jlpt');
+    const idParam = url.searchParams.get('id');
+    const minStrokesParam = url.searchParams.get('minStrokes');
+    const maxStrokesParam = url.searchParams.get('maxStrokes');
+    const orderBy = url.searchParams.get('orderBy') || 'jlptLevel';
+    const orderDirection = (url.searchParams.get('orderDirection') || 'asc') as 'asc' | 'desc';
     
-    const limit = url.searchParams.get('limit') ? parseInt(url.searchParams.get('limit') || '50', 10) : 50;
-    const offset = url.searchParams.get('offset') ? parseInt(url.searchParams.get('offset') || '0', 10) : 0;
+    // Convert to appropriate types
+    const limit = limitParam ? parseInt(limitParam, 10) : 20;
+    const offset = offsetParam ? parseInt(offsetParam, 10) : 0;
+    const jlptLevel = jlptLevelParam ? parseInt(jlptLevelParam, 10) : null;
+    const minStrokes = minStrokesParam ? parseInt(minStrokesParam, 10) : null;
+    const maxStrokes = maxStrokesParam ? parseInt(maxStrokesParam, 10) : null;
     
-    // Build filter conditions
-    const conditions = [];
-    
-    if (searchQuery) {
-      conditions.push(
-        or(
-          like(kanjis.character, `%${searchQuery}%`),
-          like(kanjis.meaning, `%${searchQuery}%`)
-        )
-      );
+    // Validate parameters
+    if (isNaN(limit) || limit < 1 || limit > 100) {
+      return json({ error: 'Invalid limit parameter' }, { status: 400 });
     }
     
-    if (jlptLevel !== null) {
-      conditions.push(eq(kanjis.jlptLevel, jlptLevel));
+    if (isNaN(offset) || offset < 0) {
+      return json({ error: 'Invalid offset parameter' }, { status: 400 });
     }
     
-    if (minStrokes !== null && maxStrokes !== null) {
-      conditions.push(between(kanjis.strokeCount, minStrokes, maxStrokes));
-    } else if (minStrokes !== null) {
-      conditions.push(
-        and(
-          not(isNull(kanjis.strokeCount)),
-          sql`${kanjis.strokeCount} >= ${minStrokes}`
-        )
-      );
-    } else if (maxStrokes !== null) {
-      conditions.push(
-        and(
-          not(isNull(kanjis.strokeCount)),
-          sql`${kanjis.strokeCount} <= ${maxStrokes}`
-        )
-      );
+    if (jlptLevelParam && (isNaN(jlptLevel!) || jlptLevel! < 1 || jlptLevel! > 5)) {
+      return json({ error: 'Invalid JLPT level parameter' }, { status: 400 });
     }
     
-    // Execute query with filters
-    const results = conditions.length > 0
-      ? await db.select().from(kanjis).where(and(...conditions)).limit(limit).offset(offset)
-      : await db.select().from(kanjis).limit(limit).offset(offset);
+    if (minStrokesParam && (isNaN(minStrokes!) || minStrokes! < 1)) {
+      return json({ error: 'Invalid minStrokes parameter' }, { status: 400 });
+    }
     
-    // Count total matching records for pagination
-    const countQuery = conditions.length > 0
-      ? await db.select({ count: sql`count(*)` }).from(kanjis).where(and(...conditions))
-      : await db.select({ count: sql`count(*)` }).from(kanjis);
+    if (maxStrokesParam && (isNaN(maxStrokes!) || maxStrokes! < 1)) {
+      return json({ error: 'Invalid maxStrokes parameter' }, { status: 400 });
+    }
     
-    // Return formatted response
-    return json({
-      data: results.map(kanji => ({
+    // Handle specific kanji ID request differently
+    if (idParam) {
+      // Directly use getKanjiById for ID lookups
+      const kanji = await getKanjiById(idParam);
+      
+      if (!kanji) {
+        return json({ error: 'Kanji not found' }, { status: 404 });
+      }
+      
+      // Transform to match the expected format with examples parsing
+      const formattedKanji = {
         id: kanji.id,
         character: kanji.character,
         meaning: kanji.meaning,
@@ -70,16 +61,45 @@ export const GET: RequestHandler = async ({ url }) => {
         kunyomi: kanji.kunyomi,
         jlptLevel: kanji.jlptLevel,
         strokeCount: kanji.strokeCount,
-        examples: kanji.examples || []
-      })),
-      pagination: {
-        total: countQuery[0]?.count || 0,
-        limit,
-        offset
-      }
+        jouyouGrade: kanji.jouyouGrade,
+        radicals: kanji.radicals,
+        examples: kanji.examples ? (typeof kanji.examples === 'string' ? JSON.parse(kanji.examples) : kanji.examples) : null,
+        sentence_examples: kanji.sentence_examples ? (typeof kanji.sentence_examples === 'string' ? JSON.parse(kanji.sentence_examples) : kanji.sentence_examples) : null,
+        createdAt: kanji.createdAt,
+        updatedAt: kanji.updatedAt
+      };
+      
+      return json({
+        data: [formattedKanji], // Return as array to maintain API consistency
+        count: 1,
+        limit: 1,
+        offset: 0
+      });
+    }
+    
+    // Search kanji with the provided parameters
+    const result = await searchKanji({
+      query,
+      jlptLevel,
+      minStrokes,
+      maxStrokes,
+      limit,
+      offset,
+      orderBy,
+      orderDirection
+    });
+    
+    return json({
+      data: result.data,
+      count: result.pagination.total,
+      limit,
+      offset
     });
   } catch (error) {
     console.error('Error fetching kanji:', error);
-    return json({ error: 'Failed to fetch kanji data' }, { status: 500 });
+    return json(
+      { error: 'An error occurred while fetching kanji data' },
+      { status: 500 }
+    );
   }
 }; 

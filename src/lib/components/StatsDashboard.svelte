@@ -104,8 +104,8 @@
         <span class="text-3xl font-bold text-slate-900 dark:text-white">{formatStudyTime(studyTimeMinutes)}</span>
       </div>
       <div class="flex justify-between text-sm text-slate-500 dark:text-slate-400 mt-2">
-        <div>{(studyTimeMinutes / totalReviews).toFixed(1)} min/review avg</div>
-        <div>{Math.round(totalReviews / (studyTimeMinutes / 60))} reviews/hour</div>
+        <div>{totalReviews > 0 ? (studyTimeMinutes / totalReviews).toFixed(1) : '0'} min/review avg</div>
+        <div>{studyTimeMinutes > 0 ? Math.round(totalReviews / (studyTimeMinutes / 60)) : 0} reviews/hour</div>
       </div>
     </div>
   </div>

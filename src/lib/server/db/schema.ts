@@ -1,6 +1,7 @@
 import { sqliteTable, text, integer, blob } from 'drizzle-orm/sqlite-core';
 import { createId } from '@paralleldrive/cuid2';
 import { sql } from 'drizzle-orm';
+import type { KanjiExample } from './openai-utils';
 
 // User table with extended information for the Kanji learning application
 export const users = sqliteTable('users', {
@@ -26,6 +27,13 @@ export const users = sqliteTable('users', {
 	lastStudyDate: text('last_study_date')
 });
 
+// Authentication sessions for Lucia auth
+export const authSessions = sqliteTable('auth_sessions', {
+	id: text('id').primaryKey(),
+	userId: text('userId').notNull().references(() => users.id, { onDelete: 'cascade' }),
+	expiresAt: integer('expiresAt').notNull()
+});
+
 // Kanji table to store all kanji information
 export const kanjis = sqliteTable('kanjis', {
 	id: text('id').primaryKey().$defaultFn(() => createId()),
@@ -44,6 +52,7 @@ export const kanjis = sqliteTable('kanjis', {
 		reading: string;
 		meaning: string;
 	}>>(),
+	sentence_examples: text('sentence_examples', { mode: 'json' }).$type<KanjiExample[]>(),
 	mnemonics: text('mnemonics'),
 	strokeOrderDiagram: text('stroke_order_diagram'),
 	createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),

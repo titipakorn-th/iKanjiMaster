@@ -1,54 +1,34 @@
 <script lang="ts">
   import StatsDashboard from '$lib/components/StatsDashboard.svelte';
   
-  // Sample detailed statistics
+  // Sample detailed statistics - reset to zero to match user session data
   const stats = {
-    totalKanji: 2136,
-    learningKanji: 153,
-    masteredKanji: 78,
-    currentStreak: 5,
-    longestStreak: 12,
-    totalReviews: 542,
-    correctReviews: 456,
-    averageAccuracy: 84,
-    studyTimeMinutes: 320,
+    totalKanji: 2136, // Keep total kanji count as this represents available kanji
+    learningKanji: 0,
+    masteredKanji: 0,
+    currentStreak: 0,
+    longestStreak: 0,
+    totalReviews: 0,
+    correctReviews: 0,
+    averageAccuracy: 0,
+    studyTimeMinutes: 0,
     dailyGoal: 20,
     reviewsByDay: [
-      { date: '2023-04-01', count: 8 },
-      { date: '2023-04-02', count: 12 },
-      { date: '2023-04-03', count: 0 },
-      { date: '2023-04-04', count: 5 },
-      { date: '2023-04-05', count: 15 },
-      { date: '2023-04-06', count: 0 },
-      { date: '2023-04-07', count: 0 },
-      { date: '2023-04-08', count: 22 },
-      { date: '2023-04-09', count: 18 },
-      { date: '2023-04-10', count: 14 },
-      { date: '2023-04-11', count: 9 },
-      { date: '2023-04-12', count: 11 },
-      { date: '2023-04-13', count: 13 },
-      { date: '2023-04-14', count: 10 },
-      { date: '2023-04-15', count: 0 },
-      { date: '2023-04-16', count: 0 },
-      { date: '2023-04-17', count: 25 },
-      { date: '2023-04-18', count: 18 },
-      { date: '2023-04-19', count: 21 },
-      { date: '2023-04-20', count: 15 },
-      { date: '2023-04-21', count: 22 },
-      { date: '2023-04-22', count: 18 },
-      { date: '2023-04-23', count: 25 },
-      { date: '2023-04-24', count: 12 },
-      { date: '2023-04-25', count: 20 },
-      { date: '2023-04-26', count: 16 },
-      { date: '2023-04-27', count: 0 },
-      { date: '2023-04-28', count: 23 },
-      { date: '2023-04-29', count: 19 },
-      { date: '2023-04-30', count: 17 }
+      // Generate last 30 days with zero counts
+      ...Array.from({ length: 30 }, (_, i) => {
+        const date = new Date();
+        date.setDate(date.getDate() - 29 + i);
+        return { 
+          date: date.toISOString().split('T')[0], 
+          count: 0 
+        };
+      })
     ],
     levelDistribution: [
-      { level: 5, count: 35 },
-      { level: 4, count: 23 },
-      { level: 2, count: 8 },
+      { level: 5, count: 0 },
+      { level: 4, count: 0 },
+      { level: 3, count: 0 },
+      { level: 2, count: 0 },
       { level: 1, count: 0 }
     ]
   };
@@ -281,7 +261,9 @@
         <div class="flex items-center justify-between">
           <div class="text-sm font-medium text-slate-700 dark:text-slate-300">Daily Reviews</div>
           <div class="text-sm font-medium text-slate-700 dark:text-slate-300">
-            {Math.round(stats.reviewsByDay.reduce((sum, day) => sum + day.count, 0) / stats.reviewsByDay.length)} avg
+            {stats.reviewsByDay.length > 0 
+              ? Math.round(stats.reviewsByDay.reduce((sum, day) => sum + day.count, 0) / stats.reviewsByDay.length) 
+              : 0} avg
           </div>
         </div>
         
@@ -335,14 +317,14 @@
           
           <div class="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
             <div class="h-32 flex items-end">
-              <div class="w-1/3 bg-slate-300 dark:bg-slate-600 rounded-t-sm h-full relative flex items-end justify-center" style={`height: ${((stats.totalKanji - stats.learningKanji - stats.masteredKanji) / stats.totalKanji) * 100}%`}>
-                <div class="absolute bottom-full mb-1 text-xs">{Math.round(((stats.totalKanji - stats.learningKanji - stats.masteredKanji) / stats.totalKanji) * 100)}%</div>
+              <div class="w-1/3 bg-slate-300 dark:bg-slate-600 rounded-t-sm h-full relative flex items-end justify-center" style={`height: ${stats.totalKanji > 0 ? ((stats.totalKanji - stats.learningKanji - stats.masteredKanji) / stats.totalKanji) * 100 : 0}%`}>
+                <div class="absolute bottom-full mb-1 text-xs">{stats.totalKanji > 0 ? Math.round(((stats.totalKanji - stats.learningKanji - stats.masteredKanji) / stats.totalKanji) * 100) : 0}%</div>
               </div>
-              <div class="w-1/3 bg-amber-500 dark:bg-amber-600 rounded-t-sm h-full relative flex items-end justify-center" style={`height: ${(stats.learningKanji / stats.totalKanji) * 100}%`}>
-                <div class="absolute bottom-full mb-1 text-xs">{Math.round((stats.learningKanji / stats.totalKanji) * 100)}%</div>
+              <div class="w-1/3 bg-amber-500 dark:bg-amber-600 rounded-t-sm h-full relative flex items-end justify-center" style={`height: ${stats.totalKanji > 0 ? (stats.learningKanji / stats.totalKanji) * 100 : 0}%`}>
+                <div class="absolute bottom-full mb-1 text-xs">{stats.totalKanji > 0 ? Math.round((stats.learningKanji / stats.totalKanji) * 100) : 0}%</div>
               </div>
-              <div class="w-1/3 bg-emerald-500 dark:bg-emerald-600 rounded-t-sm h-full relative flex items-end justify-center" style={`height: ${(stats.masteredKanji / stats.totalKanji) * 100}%`}>
-                <div class="absolute bottom-full mb-1 text-xs">{Math.round((stats.masteredKanji / stats.totalKanji) * 100)}%</div>
+              <div class="w-1/3 bg-emerald-500 dark:bg-emerald-600 rounded-t-sm h-full relative flex items-end justify-center" style={`height: ${stats.totalKanji > 0 ? (stats.masteredKanji / stats.totalKanji) * 100 : 0}%`}>
+                <div class="absolute bottom-full mb-1 text-xs">{stats.totalKanji > 0 ? Math.round((stats.masteredKanji / stats.totalKanji) * 100) : 0}%</div>
               </div>
             </div>
             <div class="flex text-xs text-slate-600 dark:text-slate-400 mt-2">
@@ -396,21 +378,23 @@
               <div class="flex justify-between">
                 <div class="text-sm font-medium">Per review</div>
                 <div class="text-sm">
-                  {(stats.studyTimeMinutes / stats.totalReviews).toFixed(1)} minutes
+                  {stats.totalReviews > 0 ? (stats.studyTimeMinutes / stats.totalReviews).toFixed(1) : '0'} minutes
                 </div>
               </div>
               
               <div class="flex justify-between">
                 <div class="text-sm font-medium">Reviews per hour</div>
                 <div class="text-sm">
-                  {Math.round(stats.totalReviews / (stats.studyTimeMinutes / 60))}
+                  {stats.studyTimeMinutes > 0 ? Math.round(stats.totalReviews / (stats.studyTimeMinutes / 60)) : '0'}
                 </div>
               </div>
               
               <div class="flex justify-between">
                 <div class="text-sm font-medium">Avg. daily time</div>
                 <div class="text-sm">
-                  {Math.round(stats.studyTimeMinutes / stats.reviewsByDay.filter(day => day.count > 0).length)} minutes
+                  {stats.reviewsByDay.filter(day => day.count > 0).length > 0 
+                    ? Math.round(stats.studyTimeMinutes / stats.reviewsByDay.filter(day => day.count > 0).length) 
+                    : '0'} minutes
                 </div>
               </div>
             </div>

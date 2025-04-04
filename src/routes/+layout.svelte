@@ -1,6 +1,10 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import '../app.css';
+	import { onMount } from 'svelte';
+	import { page } from '$app/stores';
+	import { authStore, isAuthenticated, isLoading } from '$lib/stores/auth';
+	import UserMenuDropdown from '$lib/components/UserMenuDropdown.svelte';
+	import { browser } from '$app/environment';
 
 	// Theme state
 	let theme: 'light' | 'dark' = 'light';
@@ -34,76 +38,106 @@
 
 		applyTheme();
 	});
+
+	// Check authentication on mount
+	onMount(async () => {
+		if (browser) {
+			await authStore.checkAuth();
+		}
+	});
+
+	// List of navigation items
+	const navItems = [
+		{ label: 'Home', href: '/' },
+		{ label: 'Study', href: '/study' },
+		{ label: 'Browse', href: '/browse' },
+		{ label: 'Decks', href: '/decks' },
+		{ label: 'Stats', href: '/stats' }
+	];
 </script>
 
-<div class="min-h-screen flex flex-col bg-white dark:bg-slate-900 text-slate-900 dark:text-white transition-colors duration-200">
-	<header class="bg-white dark:bg-slate-800 shadow-sm py-4 px-6 border-b border-slate-200 dark:border-slate-700">
-		<div class="container mx-auto flex justify-between items-center">
-			<a href="/" class="flex items-center space-x-2">
-				<span class="text-2xl font-bold text-indigo-600 dark:text-indigo-400">漢字</span>
-				<span class="font-semibold text-xl">iKanjiMaster</span>
-			</a>
+<svelte:head>
+	<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>漢</text></svg>" />
+	<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>漢</text></svg>" />
+</svelte:head>
 
-			<nav class="hidden md:flex items-center space-x-8">
-				<a href="/" class="font-medium hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">Dashboard</a>
-				<a href="/study" class="font-medium hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">Study</a>
-				<a href="/browse" class="font-medium hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">Browse Kanji</a>
-				<a href="/decks" class="font-medium hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">Decks</a>
-				<a href="/stats" class="font-medium hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">Stats</a>
-			</nav>
-
-			<div class="flex items-center space-x-4">
-				<button 
-					class="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-					on:click={toggleTheme}
-					aria-label="Toggle theme"
-				>
-					{#if theme === 'dark'}
-						<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-							<path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clip-rule="evenodd" />
-						</svg>
+<div class="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-900">
+	<header class="bg-white dark:bg-slate-800 shadow-sm sticky top-0 z-10">
+		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+			<div class="flex justify-between h-16">
+				<div class="flex">
+					<div class="flex-shrink-0 flex items-center">
+						<a href="/" class="flex items-center">
+							<span class="text-2xl font-bold text-indigo-600 dark:text-indigo-400">i</span>
+							<span class="text-2xl font-bold text-slate-800 dark:text-white">KanjiMaster</span>
+						</a>
+					</div>
+					<nav class="ml-6 flex space-x-8">
+						{#each navItems as item}
+							<a
+								href={item.href}
+								class={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
+									$page.url.pathname === item.href || 
+									($page.url.pathname.startsWith(item.href) && item.href !== '/')
+										? 'border-indigo-500 text-gray-900 dark:text-white'
+										: 'border-transparent text-gray-500 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600 hover:text-gray-700 dark:hover:text-gray-100'
+								}`}
+							>
+								{item.label}
+							</a>
+						{/each}
+					</nav>
+				</div>
+				<div class="flex items-center">
+					<button 
+						class="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors mr-4"
+						on:click={toggleTheme}
+						aria-label="Toggle theme"
+					>
+						{#if theme === 'dark'}
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+								<path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clip-rule="evenodd" />
+							</svg>
+						{:else}
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-700" viewBox="0 0 20 20" fill="currentColor">
+								<path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
+							</svg>
+						{/if}
+					</button>
+					{#if $isLoading}
+						<div class="animate-pulse h-8 w-8 rounded-full bg-gray-200 dark:bg-gray-700"></div>
+					{:else if $isAuthenticated}
+						<UserMenuDropdown />
 					{:else}
-						<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-							<path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
-						</svg>
+						<a 
+							href="/auth" 
+							class="text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300"
+						>
+							Sign in
+						</a>
+						<span class="text-gray-400 dark:text-gray-600 mx-2">|</span>
+						<a 
+							href="/auth?register" 
+							class="text-sm font-medium text-slate-800 dark:text-white hover:text-black dark:hover:text-gray-200"
+						>
+							Register
+						</a>
 					{/if}
-				</button>
-				
-				<button class="block md:hidden p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-md transition-colors">
-					<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
-					</svg>
-				</button>
+				</div>
 			</div>
 		</div>
 	</header>
-	
-	<main class="flex-grow container mx-auto px-6 py-8">
+
+	<main class="flex-grow w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
 		<slot />
 	</main>
-	
-	<footer class="bg-white dark:bg-slate-800 py-8 border-t border-slate-200 dark:border-slate-700">
-		<div class="container mx-auto px-6">
-			<div class="flex flex-col md:flex-row justify-between items-center">
-				<div class="mb-4 md:mb-0">
-					<p class="text-sm text-slate-600 dark:text-slate-400">
-						&copy; {new Date().getFullYear()} iKanjiMaster. All rights reserved.
-					</p>
-				</div>
-				<div class="flex space-x-6">
-					<a href="/about" class="text-sm text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
-						About
-					</a>
-					<a href="/terms" class="text-sm text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
-						Terms
-					</a>
-					<a href="/privacy" class="text-sm text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
-						Privacy
-					</a>
-					<a href="/contact" class="text-sm text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
-						Contact
-					</a>
-				</div>
+
+	<footer class="bg-white dark:bg-slate-800 shadow-inner">
+		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+			<div class="border-t border-slate-200 dark:border-slate-700 pt-6">
+				<p class="text-center text-sm text-slate-500 dark:text-slate-400">
+					© {new Date().getFullYear()} iKanjiMaster. All rights reserved.
+				</p>
 			</div>
 		</div>
 	</footer>

@@ -1,6 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import StudySession from '$lib/components/StudySession.svelte';
+  import type { PageData } from './$types';
+  
+  export let data: PageData;
   
   // Study session state
   let sessionStarted = false;
@@ -9,6 +12,39 @@
   let cardLimit = 20;
   let includeNew = true;
   let includeDue = true;
+  let isLoading = false;
+  let error = '';
+  
+  // Kanji data for the study session
+  type KanjiItem = {
+    id: string;
+    character: string;
+    meaning: string;
+    onyomi: string | null;
+    kunyomi: string | null;
+    jlptLevel: number | null;
+    strokeCount: number | null;
+    examples: Array<{
+      word: string;
+      reading: string;
+      meaning: string;
+      sentence?: string;
+      sentenceReading?: string;
+      sentenceMeaning?: string;
+      furigana?: Record<string, string>;
+    }> | null;
+    sentence_examples?: Array<{
+      word: string;
+      reading: string;
+      meaning: string;
+      sentence?: string;
+      sentenceReading?: string;
+      sentenceMeaning?: string;
+      furigana?: Record<string, string>;
+    }> | null;
+  };
+  
+  let studyItems: KanjiItem[] = [];
   
   // Decks data (in a real app, this would come from the database)
   const decks = [
@@ -19,87 +55,139 @@
     { id: 'animals', name: 'Animals', description: 'Kanji for common animals', count: 35 }
   ];
   
-  // Sample kanji data for the study session (in a real app, this would come from the database)
-  const studyItems = [
-    {
-      id: 'k1',
-      character: '水',
-      onyomi: 'スイ',
-      kunyomi: 'みず',
-      meaning: 'water',
-      jlptLevel: 5,
-      strokeCount: 4,
-      examples: [
-        { word: '水曜日', reading: 'すいようび', meaning: 'Wednesday' },
-        { word: '水泳', reading: 'すいえい', meaning: 'swimming' },
-        { word: '冷水', reading: 'れいすい', meaning: 'cold water' }
-      ]
-    },
-    {
-      id: 'k2',
-      character: '火',
-      onyomi: 'カ',
-      kunyomi: 'ひ',
-      meaning: 'fire',
-      jlptLevel: 5,
-      strokeCount: 4,
-      examples: [
-        { word: '火曜日', reading: 'かようび', meaning: 'Tuesday' },
-        { word: '火山', reading: 'かざん', meaning: 'volcano' },
-        { word: '花火', reading: 'はなび', meaning: 'fireworks' }
-      ]
-    },
-    {
-      id: 'k3',
-      character: '木',
-      onyomi: 'モク, ボク',
-      kunyomi: 'き',
-      meaning: 'tree, wood',
-      jlptLevel: 5,
-      strokeCount: 4,
-      examples: [
-        { word: '木曜日', reading: 'もくようび', meaning: 'Thursday' },
-        { word: '木材', reading: 'もくざい', meaning: 'lumber, timber' },
-        { word: '木々', reading: 'きぎ', meaning: 'trees' }
-      ]
-    },
-    {
-      id: 'k4',
-      character: '金',
-      onyomi: 'キン, コン',
-      kunyomi: 'かね, かな-',
-      meaning: 'gold, money',
-      jlptLevel: 5,
-      strokeCount: 8,
-      examples: [
-        { word: '金曜日', reading: 'きんようび', meaning: 'Friday' },
-        { word: 'お金', reading: 'おかね', meaning: 'money' },
-        { word: '金庫', reading: 'きんこ', meaning: 'safe, vault' }
-      ]
-    },
-    {
-      id: 'k5',
-      character: '土',
-      onyomi: 'ド, ト',
-      kunyomi: 'つち',
-      meaning: 'earth, soil',
-      jlptLevel: 5,
-      strokeCount: 3,
-      examples: [
-        { word: '土曜日', reading: 'どようび', meaning: 'Saturday' },
-        { word: '土地', reading: 'とち', meaning: 'land, plot' },
-        { word: '土産', reading: 'みやげ', meaning: 'souvenir' }
-      ]
+  // Get preselected parameters from URL
+  const { kanjiId, jlptLevel } = data.studyParams;
+  
+  // Fetch kanji data from API
+  async function fetchKanjiForStudy() {
+    isLoading = true;
+    error = '';
+    
+    try {
+      // Map from deck IDs to JLPT levels for this demo
+      const jlptMap = {
+        'jlpt-n5': 5,
+        'jlpt-n4': 4,
+      };
+      
+      let apiUrl = '/api/kanji?limit=' + cardLimit;
+      
+      // If a specific kanji ID was requested, fetch just that one
+      if (kanjiId) {
+        console.log(`Fetching specific kanji with ID: ${kanjiId}`);
+        const response = await fetch(`/api/kanji?id=${kanjiId}`);
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          console.error('API error response:', errorData);
+          throw new Error(errorData.error || `Failed to fetch kanji with ID ${kanjiId}`);
+        }
+        
+        const data = await response.json();
+        console.log('API response for kanji by ID:', data);
+        
+        if (!data.data || !Array.isArray(data.data) || data.data.length === 0) {
+          throw new Error(`Kanji with ID ${kanjiId} not found`);
+        }
+        
+        studyItems = data.data
+          .map((kanji: any) => {
+            // Make sure both examples arrays are arrays if present
+            const examples = kanji.examples ? 
+              (typeof kanji.examples === 'string' ? JSON.parse(kanji.examples) : kanji.examples) : 
+              [];
+              
+            const sentenceExamples = kanji.sentence_examples ? 
+              (typeof kanji.sentence_examples === 'string' ? JSON.parse(kanji.sentence_examples) : kanji.sentence_examples) : 
+              [];
+              
+            return {
+              id: kanji.id,
+              character: kanji.character,
+              meaning: kanji.meaning,
+              onyomi: kanji.onyomi || null,
+              kunyomi: kanji.kunyomi || null,
+              jlptLevel: kanji.jlptLevel || null,
+              strokeCount: kanji.strokeCount || null,
+              examples: examples,
+              sentence_examples: sentenceExamples.length > 0 ? sentenceExamples : undefined
+            } as KanjiItem;
+          })
+          .sort(() => Math.random() - 0.5)
+          .slice(0, cardLimit);
+        
+        sessionStarted = true;
+        return;
+      }
+      
+      // Add JLPT filter for N4 and N5 decks
+      const level = jlptLevel || (selectedDeckId === 'jlpt-n5' ? 5 : 
+                                   selectedDeckId === 'jlpt-n4' ? 4 : null);
+      
+      if (level) {
+        apiUrl += '&jlpt=' + level;
+      }
+      
+      console.log(`Fetching kanji with URL: ${apiUrl}`);
+      const response = await fetch(apiUrl);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('API error response:', errorData);
+        throw new Error(errorData.error || 'Failed to fetch kanji data');
+      }
+      
+      const data = await response.json();
+      console.log('API response for kanji search:', data);
+      
+      if (!data.data || !Array.isArray(data.data) || data.data.length === 0) {
+        throw new Error('No kanji data available');
+      }
+      
+      // Process examples to ensure sentence examples are available
+      studyItems = data.data
+        .map((kanji: any) => {
+          // Make sure both examples arrays are arrays if present
+          const examples = kanji.examples ? 
+            (typeof kanji.examples === 'string' ? JSON.parse(kanji.examples) : kanji.examples) : 
+            [];
+            
+          const sentenceExamples = kanji.sentence_examples ? 
+            (typeof kanji.sentence_examples === 'string' ? JSON.parse(kanji.sentence_examples) : kanji.sentence_examples) : 
+            [];
+            
+          return {
+            id: kanji.id,
+            character: kanji.character,
+            meaning: kanji.meaning,
+            onyomi: kanji.onyomi || null,
+            kunyomi: kanji.kunyomi || null,
+            jlptLevel: kanji.jlptLevel || null,
+            strokeCount: kanji.strokeCount || null,
+            examples: examples,
+            sentence_examples: sentenceExamples.length > 0 ? sentenceExamples : undefined
+          } as KanjiItem;
+        })
+        .sort(() => Math.random() - 0.5)
+        .slice(0, cardLimit);
+      
+      sessionStarted = true;
+    } catch (err: unknown) {
+      console.error('Error fetching kanji:', err);
+      error = err instanceof Error ? err.message : 'Failed to load kanji for study session';
+      sessionStarted = false;
+    } finally {
+      isLoading = false;
     }
-  ];
+  }
   
   // Start study session
   function startSession() {
-    sessionStarted = true;
+    fetchKanjiForStudy();
   }
   
   // Handle study session completion
-  function handleSessionComplete(event: CustomEvent<{ reviewHistory: Record<string, number>, totalTime: number }>) {
+  function handleSessionComplete(event: CustomEvent<any>) {
     console.log('Session completed', event.detail);
     // In a real app, this would save the results to the database
     sessionStarted = false;
@@ -110,10 +198,24 @@
     selectedDeckId = deckId;
   }
   
-  // Auto-select the first deck on mount
+  // Auto-select the first deck on mount, or use URL parameters if provided
   onMount(() => {
-    if (decks.length > 0) {
+    // If a JLPT level was specified, select the corresponding deck
+    if (jlptLevel) {
+      if (jlptLevel === 5) {
+        selectedDeckId = 'jlpt-n5';
+      } else if (jlptLevel === 4) {
+        selectedDeckId = 'jlpt-n4';
+      }
+    }
+    // Otherwise, select the first deck
+    else if (decks.length > 0 && !selectedDeckId) {
       selectedDeckId = decks[0].id;
+    }
+    
+    // If a specific kanji ID was requested, start the session immediately
+    if (kanjiId) {
+      fetchKanjiForStudy();
     }
   });
 </script>
@@ -238,21 +340,32 @@
         </div>
       </div>
       
+      <!-- Error display -->
+      {#if error}
+        <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6" role="alert">
+          <p>{error}</p>
+        </div>
+      {/if}
+      
       <!-- Start button -->
       <div class="flex justify-center">
         <button 
           on:click={startSession}
           class="px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg transition-colors text-lg"
-          disabled={!selectedDeckId || (!includeNew && !includeDue)}
+          disabled={!selectedDeckId || (!includeNew && !includeDue) || isLoading}
         >
-          Start Studying
+          {#if isLoading}
+            <span class="inline-block animate-spin mr-2">↻</span> Loading...
+          {:else}
+            Start Studying
+          {/if}
         </button>
       </div>
     </div>
   {:else}
     <!-- Study session -->
     <StudySession 
-      kanjiItems={studyItems} 
+      kanjiItems={studyItems}
       studyMode={selectedMode}
       deckName={decks.find(d => d.id === selectedDeckId)?.name || 'Study Session'}
       on:complete={handleSessionComplete}
